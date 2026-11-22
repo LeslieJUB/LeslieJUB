@@ -74,6 +74,8 @@ docker compose --profile spark run --rm spark-streaming
 ```
 The Python worker and Spark job are alternative consumer implementations. Run only the intended consumer in a real deployment to avoid duplicate processing/costs. Spark downloads its Kafka and S3A connector JARs on first startup.
 
+See the [AWS deployment guide](docs/DEPLOYMENT_AWS.md) for credentials, plan/apply and teardown. It clearly distinguishes the S3 foundation from the runtime components that still need to be deployed.
+
 ## AWS foundation
 Terraform in infra/terraform provisions private, versioned S3 buckets for bronze, silver and gold, KMS encryption, public-access blocks and lifecycle configuration. Default region is eu-central-1 (Frankfurt).
 ```bash
