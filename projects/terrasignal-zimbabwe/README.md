@@ -1,50 +1,56 @@
 # TerraSignal Zimbabwe
-**Satellite intelligence & predictive monitoring for Zimbabwe.**
+**Earth-observation intelligence for Zimbabwe.**
 
-TerraSignal is an Earth-observation monitoring platform concept for forestry agencies, conservation organisations, agricultural operators, insurers and environmental programmes. It turns satellite-derived indicators and geospatial context into traceable signals that help teams prioritise field investigation.
+TerraSignal is a geospatial monitoring platform that discovers and analyses satellite observations to support forestry, conservation, agriculture and environmental-risk teams.
 
-> **Prototype disclosure:** This first release contains illustrative demonstration data. It is not a live satellite service, verified forest inventory, official risk assessment or operational forecast. Sentinel and NASA FIRMS integrations are planned, not yet connected.
+## Live integrations in this release
+- **Copernicus Data Space Ecosystem STAC API:** live discovery of Sentinel-2 L2A catalogue items intersecting Zimbabwe, with acquisition timestamps, cloud-cover metadata, platform, collection and asset references.
+- **NASA FIRMS:** live country-level VIIRS SNPP near-real-time thermal-anomaly records for Zimbabwe. Requires a free NASA FIRMS map key.
 
-## MVP
-- Zimbabwe-focused monitoring dashboard and interactive map.
-- Regional watchlist with transparent illustrative risk indices.
-- Analyst alert workflow with confidence and review status.
-- FastAPI endpoints for summary, regions, alerts and health.
-- Clear provenance and data-integrity rules.
-
-## Stack
-Python 3.12+, FastAPI, Pydantic, Leaflet, PostgreSQL/PostGIS (planned), STAC, Sentinel-1/2 (planned), Rasterio, GeoPandas, Xarray, Docker and Terraform.
+These are genuine upstream records. Sentinel scene discovery is catalogue metadata only; it does **not** yet calculate NDVI or establish vegetation loss. FIRMS thermal anomalies are not confirmed ground fires.
 
 ## Run locally
+Python 3.12+ recommended.
 ```bash
+cd projects/terrasignal-zimbabwe
 python -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
-uvicorn terrasignal.api:app --reload
 ```
-API docs: http://127.0.0.1:8000/docs
-
+Get a free NASA FIRMS API key: https://firms.modaps.eosdis.nasa.gov/api/map_key/
+```bash
+export NASA_FIRMS_MAP_KEY="YOUR_KEY"
+uvicorn terrasignal.api:app --app-dir src --reload
+```
 In a second terminal:
 ```bash
 python -m http.server 8080 --directory web
 ```
-Dashboard: http://127.0.0.1:8080
+Open http://127.0.0.1:8080. API docs: http://127.0.0.1:8000/docs.
+
+The dashboard attempts both live providers independently. If a provider is unavailable or the FIRMS key is missing, it displays the error instead of filling the screen with synthetic records.
+
+## API
+- GET `/health`
+- GET `/api/v1/sentinel/scenes?start=YYYY-MM-DD&end=YYYY-MM-DD&max_cloud=30`
+- GET `/api/v1/fires?days=2` (1–10 days)
 
 ## Data integrity
-1. Never label sample data as satellite observations.
-2. Record source, acquisition time, processing version, spatial resolution and QA status for real observations.
-3. Separate detected change from confirmed change; field validation is a separate state.
-4. Display uncertainty and freshness alongside every operational risk signal.
-5. Do not infer cause, tenure or legal status from imagery alone.
+1. Preserve provider, product, acquisition time and query parameters with each observation.
+2. Distinguish catalogue availability from analysis outputs.
+3. Treat thermal anomalies as detections, not verified fires.
+4. Never generate synthetic observations or silently substitute demo values.
+5. Show missing credentials, provider errors and empty results explicitly.
+6. Add quality checks, uncertainty and field validation before operational alerts.
 
-## Roadmap
-1. Product foundation and API.
-2. STAC discovery and Sentinel-2 vegetation indices for a pilot area.
-3. Cloud-masked time-series baselines and change detection.
-4. NASA FIRMS fire ingestion with source metadata and confidence.
-5. PostGIS spatial zones, aggregation and analyst workflow.
-6. Predictive models with backtesting, calibration and uncertainty.
-7. Authentication, audit logs, alert subscriptions, observability and deployment.
+## Engineering roadmap
+1. Live Sentinel-2 scene discovery and NASA FIRMS ingestion (current).
+2. Cloud/shadow masking and Sentinel-2 surface-reflectance processing.
+3. NDVI/EVI time series with seasonal baselines and change statistics.
+4. CHIRPS rainfall time series and anomaly analysis.
+5. Zimbabwe administrative boundaries and user-defined monitoring areas.
+6. PostGIS storage, reproducible processing jobs, alert audit trail and exports.
+7. Backtested predictive models with calibrated uncertainty and monitoring.
 
-## Commercial positioning
-TerraSignal is a decision-support and prioritisation tool, not a substitute for field inspection or official environmental records. Potential users include forestry and conservation organisations, public agencies, agricultural estates, development programmes and environmental risk teams.
+## Technology
+FastAPI, Python, httpx, Leaflet, Copernicus STAC, NASA FIRMS. Planned: STAC asset processing, Rasterio, GeoPandas, Xarray, PostGIS and CHIRPS.
