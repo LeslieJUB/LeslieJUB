@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/streamforge/order-event-v1.schema.json",
+  "title": "StreamForge Order Event v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["event_id", "order_id", "customer_id", "event_time", "amount", "currency", "quantity"],
+  "properties": {
+    "event_id": {"type": "string", "format": "uuid"},
+    "order_id": {"type": "string", "minLength": 1, "maxLength": 80},
+    "customer_id": {"type": "string", "minLength": 1, "maxLength": 80},
+    "event_time": {"type": "string", "format": "date-time"},
+    "amount": {"type": "number", "minimum": 0, "maximum": 10000000},
+    "currency": {"type": "string", "pattern": "^[A-Z]{3}$"},
+    "quantity": {"type": "integer", "minimum": 1, "maximum": 100000},
+    "source": {"type": "string", "maxLength": 80, "default": "synthetic-commerce"}
+  }
+}
