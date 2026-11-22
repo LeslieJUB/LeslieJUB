@@ -1,5 +1,6 @@
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
+
 from .config import get_settings
 
 

@@ -1,9 +1,11 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+
 from .config import Settings
 from .schemas import OrderEvent
 
+
 def enrich_event(event: OrderEvent, settings: Settings) -> dict:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     age_seconds = max(0.0, (now - event.event_time).total_seconds())
     reasons = []
     if event.amount > settings.anomaly_amount_threshold:

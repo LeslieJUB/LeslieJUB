@@ -52,7 +52,9 @@ def test_batch_commits_next_offset_only_after_all_sinks(monkeypatch):
     calls = []
     monkeypatch.setattr(worker, "persist_batch", lambda engine, rows: calls.append("postgres"))
     monkeypatch.setattr(worker, "write_batch", lambda rows: calls.append("object-storage"))
-    monkeypatch.setattr(worker, "publish_dead_letters", lambda producer, topic, rows: calls.append("dlq"))
+    monkeypatch.setattr(
+        worker, "publish_dead_letters", lambda producer, topic, rows: calls.append("dlq")
+    )
 
     consumer = FakeConsumer()
     offsets = {("commerce.orders.v1", 1): 17}

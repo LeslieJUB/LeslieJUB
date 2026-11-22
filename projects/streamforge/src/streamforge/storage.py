@@ -1,10 +1,13 @@
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from io import BytesIO
+
 import boto3
 import pandas as pd
 from botocore.config import Config
+
 from .config import get_settings
+
 
 def s3_client():
     settings = get_settings()
@@ -17,22 +20,31 @@ def s3_client():
         config=Config(s3={"addressing_style": "path"}),
     )
 
+
 def write_batch(records: list[dict]) -> dict[str, str]:
     if not records:
         return {}
     settings = get_settings()
     client = s3_client()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     partition = now.strftime("year=%Y/month=%m/day=%d/hour=%H")
     stamp = now.strftime("%Y%m%dT%H%M%S%fZ")
     bronze_key = f"bronze/orders/{partition}/batch-{stamp}.jsonl"
     silver_key = f"silver/orders/{partition}/batch-{stamp}.parquet"
     raw = "\n".join(json.dumps(row, default=str) for row in records).encode()
-    client.put_object(Bucket=settings.s3_bucket_bronze, Key=bronze_key, Body=raw,
-                      ContentType="application/x-ndjson")
+    client.put_object(
+        Bucket=settings.s3_bucket_bronze,
+        Key=bronze_key,
+        Body=raw,
+        ContentType="application/x-ndjson",
+    )
     frame = pd.DataFrame(records)
     parquet = BytesIO()
     frame.to_parquet(parquet, index=False, engine="pyarrow", compression="snappy")
-    client.put_object(Bucket=settings.s3_bucket_silver, Key=silver_key, Body=parquet.getvalue(),
-                      ContentType="application/vnd.apache.parquet")
+    client.put_object(
+        Bucket=settings.s3_bucket_silver,
+        Key=silver_key,
+        Body=parquet.getvalue(),
+        ContentType="application/vnd.apache.parquet",
+    )
     return {"bronze": bronze_key, "silver": silver_key}

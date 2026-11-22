@@ -1,6 +1,8 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID
+
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+
 
 class OrderEvent(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -18,4 +20,4 @@ class OrderEvent(BaseModel):
     def require_timezone(cls, value: datetime) -> datetime:
         if value.tzinfo is None:
             raise ValueError("event_time must include a timezone")
-        return value.astimezone(timezone.utc)
+        return value.astimezone(UTC)

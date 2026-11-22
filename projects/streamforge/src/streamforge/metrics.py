@@ -1,4 +1,5 @@
 from prometheus_client import Counter, Gauge, Histogram
+
 EVENTS_CONSUMED = Counter("streamforge_events_consumed_total", "Kafka events consumed")
 EVENTS_PERSISTED = Counter("streamforge_events_persisted_total", "Events persisted to sinks")
 EVENTS_INVALID = Counter("streamforge_events_invalid_total", "Events rejected by validation")

@@ -4,13 +4,14 @@ Local run is provided by the optional Compose spark profile. The Python worker
 remains the primary reference consumer; do not run both against the same sink
 paths in a production deployment.
 """
+
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import (
-    col,
     coalesce,
+    col,
     current_timestamp,
-    lit,
     from_json,
+    lit,
     to_date,
 )
 from pyspark.sql.types import (
@@ -22,16 +23,18 @@ from pyspark.sql.types import (
     TimestampType,
 )
 
-EVENT_SCHEMA = StructType([
-    StructField("event_id", StringType(), False),
-    StructField("order_id", StringType(), False),
-    StructField("customer_id", StringType(), False),
-    StructField("event_time", TimestampType(), False),
-    StructField("amount", DoubleType(), False),
-    StructField("currency", StringType(), False),
-    StructField("quantity", IntegerType(), False),
-    StructField("source", StringType(), True),
-])
+EVENT_SCHEMA = StructType(
+    [
+        StructField("event_id", StringType(), False),
+        StructField("order_id", StringType(), False),
+        StructField("customer_id", StringType(), False),
+        StructField("event_time", TimestampType(), False),
+        StructField("amount", DoubleType(), False),
+        StructField("currency", StringType(), False),
+        StructField("quantity", IntegerType(), False),
+        StructField("source", StringType(), True),
+    ]
+)
 
 
 def main() -> None:
@@ -47,11 +50,7 @@ def main() -> None:
     amount_threshold = float(os.getenv("ANOMALY_AMOUNT_THRESHOLD", "5000"))
     quantity_threshold = int(os.getenv("ANOMALY_QUANTITY_THRESHOLD", "100"))
 
-    spark = (
-        SparkSession.builder
-        .appName("StreamForgeStructuredStreaming")
-        .getOrCreate()
-    )
+    spark = SparkSession.builder.appName("StreamForgeStructuredStreaming").getOrCreate()
     spark.sparkContext.setLogLevel("WARN")
 
     raw = (
@@ -63,16 +62,13 @@ def main() -> None:
         .load()
     )
 
-    parsed = (
-        raw.select(
-            col("topic").alias("source_topic"),
-            col("partition").alias("source_partition"),
-            col("offset").alias("source_offset"),
-            col("value").cast("string").alias("raw_value"),
-            from_json(col("value").cast("string"), EVENT_SCHEMA).alias("event"),
-        )
-        .withColumn("processed_at", current_timestamp())
-    )
+    parsed = raw.select(
+        col("topic").alias("source_topic"),
+        col("partition").alias("source_partition"),
+        col("offset").alias("source_offset"),
+        col("value").cast("string").alias("raw_value"),
+        from_json(col("value").cast("string"), EVENT_SCHEMA).alias("event"),
+    ).withColumn("processed_at", current_timestamp())
 
     valid_event = coalesce(
         col("event").isNotNull()
@@ -104,8 +100,7 @@ def main() -> None:
     )
 
     valid_query = (
-        valid.writeStream
-        .format("parquet")
+        valid.writeStream.format("parquet")
         .outputMode("append")
         .option("path", silver_path)
         .option("checkpointLocation", checkpoint)
@@ -115,8 +110,7 @@ def main() -> None:
     )
 
     invalid_query = (
-        invalid.writeStream
-        .format("parquet")
+        invalid.writeStream.format("parquet")
         .outputMode("append")
         .option("path", silver_path.rsplit("/", 1)[0] + "/spark-dlq")
         .option("checkpointLocation", checkpoint + "-dlq")

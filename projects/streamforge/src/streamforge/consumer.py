@@ -4,8 +4,8 @@ import time
 from collections import defaultdict
 
 from confluent_kafka import Consumer, KafkaError, Producer, TopicPartition
-from pydantic import ValidationError
 from prometheus_client import start_http_server
+from pydantic import ValidationError
 
 from .config import get_settings
 from .db import make_engine
@@ -90,7 +90,9 @@ def flush_batch(
     BATCH_DURATION.observe(time.perf_counter() - started)
     log.info(
         "Committed batch valid=%d dead_letter=%d partitions=%d",
-        len(records), len(dead_letters), len(commit_offsets),
+        len(records),
+        len(dead_letters),
+        len(commit_offsets),
     )
 
 
@@ -99,18 +101,22 @@ def main() -> None:
     start_http_server(9101)
     engine = make_engine()
 
-    consumer = Consumer({
-        "bootstrap.servers": settings.kafka_bootstrap_servers,
-        "group.id": settings.kafka_group_id,
-        "auto.offset.reset": "earliest",
-        "enable.auto.commit": False,
-        "max.poll.interval.ms": 300000,
-    })
-    producer = Producer({
-        "bootstrap.servers": settings.kafka_bootstrap_servers,
-        "enable.idempotence": True,
-        "acks": "all",
-    })
+    consumer = Consumer(
+        {
+            "bootstrap.servers": settings.kafka_bootstrap_servers,
+            "group.id": settings.kafka_group_id,
+            "auto.offset.reset": "earliest",
+            "enable.auto.commit": False,
+            "max.poll.interval.ms": 300000,
+        }
+    )
+    producer = Producer(
+        {
+            "bootstrap.servers": settings.kafka_bootstrap_servers,
+            "enable.idempotence": True,
+            "acks": "all",
+        }
+    )
 
     consumer.subscribe([settings.kafka_topic])
     records: list[dict] = []
@@ -136,17 +142,22 @@ def main() -> None:
                         records.append(enrich_event(event, settings))
                     except (ValidationError, ValueError, json.JSONDecodeError) as exc:
                         EVENTS_INVALID.inc()
-                        dead_letters.append({
-                            "key": message.key(),
-                            "value": message.value(),
-                            "source_topic": message.topic(),
-                            "partition": message.partition(),
-                            "offset": message.offset(),
-                            "reason": str(exc)[:4000],
-                        })
+                        dead_letters.append(
+                            {
+                                "key": message.key(),
+                                "value": message.value(),
+                                "source_topic": message.topic(),
+                                "partition": message.partition(),
+                                "offset": message.offset(),
+                                "reason": str(exc)[:4000],
+                            }
+                        )
                         log.warning(
                             "Rejected event topic=%s partition=%d offset=%d: %s",
-                            message.topic(), message.partition(), message.offset(), exc,
+                            message.topic(),
+                            message.partition(),
+                            message.offset(),
+                            exc,
                         )
 
             batch_due = (
@@ -156,8 +167,13 @@ def main() -> None:
             )
             if batch_due:
                 flush_batch(
-                    engine, producer, settings.kafka_dlq_topic, consumer,
-                    records, dead_letters, offsets,
+                    engine,
+                    producer,
+                    settings.kafka_dlq_topic,
+                    consumer,
+                    records,
+                    dead_letters,
+                    offsets,
                 )
                 records.clear()
                 dead_letters.clear()
@@ -169,8 +185,13 @@ def main() -> None:
     finally:
         if records or dead_letters:
             flush_batch(
-                engine, producer, settings.kafka_dlq_topic, consumer,
-                records, dead_letters, offsets,
+                engine,
+                producer,
+                settings.kafka_dlq_topic,
+                consumer,
+                records,
+                dead_letters,
+                offsets,
             )
         consumer.close()
         producer.flush(15)

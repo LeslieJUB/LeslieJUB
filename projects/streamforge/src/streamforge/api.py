@@ -38,10 +38,7 @@ def summary() -> dict:
     """)
     with engine.connect() as connection:
         row = connection.execute(query).mappings().one()
-    return {
-        key: float(value) if key == "gross_value" else int(value)
-        for key, value in row.items()
-    }
+    return {key: float(value) if key == "gross_value" else int(value) for key, value in row.items()}
 
 
 @app.get("/v1/events/recent", tags=["events"])
