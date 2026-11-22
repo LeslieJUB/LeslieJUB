@@ -21,7 +21,6 @@ class FakeEngine:
 
 
 def test_health_endpoint(monkeypatch):
-    monkeypatch.setattr(api, "initialise_database", lambda engine: None)
     monkeypatch.setattr(api, "engine", FakeEngine())
     with TestClient(api.app) as client:
         response = client.get("/health")
