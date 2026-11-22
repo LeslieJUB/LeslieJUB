@@ -26,7 +26,7 @@ Requirements: Docker Engine and Compose v2.
 cd projects/streamforge
 cp .env.example .env
 docker compose up --build -d
-docker compose run --rm producer
+docker compose run --rm producer --count 1000 --rate 100
 curl http://localhost:8000/health
 curl http://localhost:8000/v1/analytics/summary
 curl "http://localhost:8000/v1/events/recent?limit=20"
@@ -38,7 +38,7 @@ curl "http://localhost:8000/v1/events/recent?limit=20"
 | Prometheus | http://localhost:9090 |
 | MinIO console | http://localhost:9001 |
 | PostgreSQL | localhost:5432 |
-| Kafka external listener | localhost:29092 |
+| Kafka external listener | localhost:29092 |\n| Kafka dead-letter topic | commerce.orders.dlq.v1 |
 
 ## Data design
 - Bronze: validated source records as JSON Lines.
@@ -48,6 +48,12 @@ curl "http://localhost:8000/v1/events/recent?limit=20"
 Kafka offsets are committed after sink persistence; PostgreSQL upserts on stable event UUIDs. This is **at-least-once**, not exactly-once. A crash between object-store upload and offset commit can duplicate lake files; production hardening needs deterministic batch IDs and reconciliation.
 
 Anomaly flags use configurable amount/quantity thresholds. These are transparent demo rules, not a trained fraud model.
+
+## Reliability and operations
+
+Malformed events are routed to `commerce.orders.dlq.v1` with original source coordinates. Kafka offsets are committed per partition only after PostgreSQL, object storage and DLQ writes succeed. See [the operations runbook](docs/OPERATIONS.md) and [security notes](docs/THREAT_MODEL.md).
+
+The versioned event contract is published at [order-event-v1.schema.json](contracts/order-event-v1.schema.json).
 
 ## Quality
 ```bash
