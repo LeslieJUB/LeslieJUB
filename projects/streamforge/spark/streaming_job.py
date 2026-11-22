@@ -73,21 +73,24 @@ def main() -> None:
         .withColumn("processed_at", current_timestamp())
     )
 
-    invalid = parsed.filter(col("event").isNull()).select(
+    valid_event = (
+        col("event").isNotNull()
+        & col("event.event_id").isNotNull()
+        & col("event.order_id").isNotNull()
+        & col("event.customer_id").isNotNull()
+        & col("event.event_time").isNotNull()
+        & (col("event.amount") >= 0)
+        & (col("event.amount") <= 10000000)
+        & (col("event.quantity") >= 1)
+        & (col("event.quantity") <= 100000)
+        & col("event.currency").rlike("^[A-Z]{3}$")
+    )
+    invalid = parsed.filter(~valid_event).select(
         "source_topic", "source_partition", "source_offset", "raw_value", "processed_at"
     )
     valid = (
-        parsed.filter(col("event").isNotNull())
+        parsed.filter(valid_event)
         .select("source_topic", "source_partition", "source_offset", "processed_at", "event.*")
-        .filter(
-            col("event_id").isNotNull()
-            & col("order_id").isNotNull()
-            & col("customer_id").isNotNull()
-            & col("event_time").isNotNull()
-            & (col("amount") >= 0)
-            & (col("quantity") >= 1)
-            & col("currency").rlike("^[A-Z]{3}$")
-        )
         .withWatermark("event_time", "2 hours")
         .dropDuplicates(["event_id"])
         .withColumn("gross_value", col("amount") * col("quantity"))
