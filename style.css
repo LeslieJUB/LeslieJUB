@@ -5,3 +5,5 @@
 .project p{min-height:0}
 nav a{white-space:nowrap}
 @media(max-width:560px){nav a:nth-child(4){display:none}.nav{gap:10px}}
+
+.orb-core{overflow:hidden}.orb-core img{width:100%;height:100%;object-fit:cover;object-position:center 28%;border-radius:50%;display:block}
