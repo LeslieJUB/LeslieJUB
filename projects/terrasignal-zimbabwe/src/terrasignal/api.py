@@ -1,27 +1,54 @@
-"""FastAPI service for the TerraSignal Zimbabwe prototype."""
+"""TerraSignal API backed by live public Earth-observation catalogues."""
 
-from fastapi import FastAPI
+from datetime import date
 
-from terrasignal.data import ALERTS, REGIONS, summary_payload
+from fastapi import FastAPI, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
+
+from terrasignal.data import (
+    ProviderUnavailable,
+    firms_country_fires,
+    sentinel2_catalogue,
+)
 
 app = FastAPI(
-    title="TerraSignal Zimbabwe API",
-    version="0.1.0",
-    description="Environmental intelligence prototype. Bundled records are illustrative demo data.",
+    title="TerraSignal Zimbabwe",
+    version="0.2.0",
+    description=(
+        "Live Earth-observation data discovery for Zimbabwe. "
+        "Catalogue records and satellite detections retain source provenance."
+    ),
 )
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["GET"],
+    allow_headers=["*"],
+)
+
 
 @app.get("/health", tags=["operations"])
 def health() -> dict:
-    return {"status": "ok", "service": "terrasignal-zimbabwe"}
+    return {"status": "ok", "service": "terrasignal-zimbabwe", "data_mode": "live-upstream"}
 
-@app.get("/api/v1/summary", tags=["dashboard"])
-def get_summary() -> dict:
-    return summary_payload()
 
-@app.get("/api/v1/regions", tags=["geospatial"])
-def get_regions() -> dict:
-    return {"mode": "DEMO", "items": REGIONS}
+@app.get("/api/v1/sentinel/scenes", tags=["satellite"])
+async def get_sentinel_scenes(
+    start: date | None = None,
+    end: date | None = None,
+    max_cloud: int = Query(default=30, ge=0, le=100),
+) -> dict:
+    if start and end and start > end:
+        raise HTTPException(status_code=422, detail="start must be on or before end")
+    try:
+        return await sentinel2_catalogue(start, end, max_cloud)
+    except ProviderUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
-@app.get("/api/v1/alerts", tags=["monitoring"])
-def get_alerts() -> dict:
-    return {"mode": "DEMO", "items": ALERTS}
+
+@app.get("/api/v1/fires", tags=["fire"])
+async def get_fires(days: int = Query(default=2, ge=1, le=10)) -> dict:
+    try:
+        return await firms_country_fires(days)
+    except ProviderUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
