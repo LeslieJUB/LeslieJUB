@@ -54,6 +54,13 @@ services:
     depends_on: [minio]
     entrypoint: ["/bin/sh", "-c"]
     command: "until mc alias set local http://minio:9000 minioadmin minioadmin; do sleep 2; done; mc mb --ignore-existing local/streamforge-bronze; mc mb --ignore-existing local/streamforge-silver"
+  migrate:
+    build: .
+    env_file: .env
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      postgres: {condition: service_healthy}
+    restart: "no"
   api:
     build: .
     env_file: .env
@@ -62,6 +69,7 @@ services:
     depends_on:
       postgres: {condition: service_healthy}
       minio-init: {condition: service_completed_successfully}
+      migrate: {condition: service_completed_successfully}
     restart: unless-stopped
   worker:
     build: .
@@ -72,6 +80,7 @@ services:
       kafka-init: {condition: service_completed_successfully}
       postgres: {condition: service_healthy}
       minio-init: {condition: service_completed_successfully}
+      migrate: {condition: service_completed_successfully}
     restart: unless-stopped
   producer:
     build: .
