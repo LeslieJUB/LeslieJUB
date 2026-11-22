@@ -55,12 +55,24 @@ Malformed events are routed to `commerce.orders.dlq.v1` with original source coo
 
 The versioned event contract is published at [order-event-v1.schema.json](contracts/order-event-v1.schema.json).
 
+Database schema is managed through Alembic migrations. Compose runs the one-shot `migrate` service before starting the API and worker; production deployments should run the migration as a controlled release job.
+
 ## Quality
 ```bash
 python -m pip install -e ".[dev]"
 ruff check .
 pytest -q
 ```
+
+## Spark Structured Streaming
+
+An optional PySpark implementation is included under `spark/streaming_job.py`. It reads Kafka with Structured Streaming, validates the event contract, deduplicates by event ID with a two-hour watermark, derives gross value/anomaly flags, and writes partitioned Parquet to MinIO/S3. Invalid events are written to a separate Parquet DLQ path.
+
+Run it in a separate terminal after the local stack is up:
+```bash
+docker compose --profile spark run --rm spark-streaming
+```
+The Python worker and Spark job are alternative consumer implementations. Run only the intended consumer in a real deployment to avoid duplicate processing/costs. Spark downloads its Kafka and S3A connector JARs on first startup.
 
 ## AWS foundation
 Terraform in infra/terraform provisions private, versioned S3 buckets for bronze, silver and gold, KMS encryption, public-access blocks and lifecycle configuration. Default region is eu-central-1 (Frankfurt).
