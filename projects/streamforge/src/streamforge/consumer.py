@@ -8,7 +8,7 @@ from pydantic import ValidationError
 from prometheus_client import start_http_server
 
 from .config import get_settings
-from .db import initialise_database, make_engine
+from .db import make_engine
 from .metrics import (
     BATCH_DURATION,
     BATCH_SIZE,
@@ -98,7 +98,6 @@ def main() -> None:
     settings = get_settings()
     start_http_server(9101)
     engine = make_engine()
-    initialise_database(engine)
 
     consumer = Consumer({
         "bootstrap.servers": settings.kafka_bootstrap_servers,
