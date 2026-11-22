@@ -1,28 +1,115 @@
-"""Illustrative demo fixtures; not real satellite detections or verified statistics."""
+"""Live-data access only. No synthetic observations are stored in this project."""
 
-from datetime import datetime, timezone
+from __future__ import annotations
 
-REGIONS = [
-    {"id": "hurungwe", "name": "Hurungwe", "province": "Mashonaland West", "lat": -16.45, "lon": 29.75, "risk": 78, "status": "priority", "signal": "Vegetation stress"},
-    {"id": "mutasa", "name": "Mutasa", "province": "Manicaland", "lat": -18.55, "lon": 32.85, "risk": 64, "status": "watch", "signal": "Canopy change"},
-    {"id": "gokwe", "name": "Gokwe", "province": "Midlands", "lat": -18.20, "lon": 28.95, "risk": 51, "status": "watch", "signal": "Dryness anomaly"},
-    {"id": "chipinge", "name": "Chipinge", "province": "Manicaland", "lat": -20.55, "lon": 32.45, "risk": 36, "status": "stable", "signal": "Seasonal variation"},
-    {"id": "binga", "name": "Binga", "province": "Matabeleland North", "lat": -17.60, "lon": 27.35, "risk": 71, "status": "priority", "signal": "Fire-weather watch"},
-]
+import os
+from datetime import date, timedelta
+from typing import Any
 
-ALERTS = [
-    {"id": "TS-ZW-001", "region": "Hurungwe", "type": "Vegetation stress", "severity": "High", "confidence": 0.82, "status": "Needs review", "detail": "Illustrative sustained vegetation-index decline scenario."},
-    {"id": "TS-ZW-002", "region": "Binga", "type": "Fire-weather watch", "severity": "High", "confidence": 0.74, "status": "Needs review", "detail": "Illustrative seasonal dryness watch scenario."},
-    {"id": "TS-ZW-003", "region": "Mutasa", "type": "Canopy change", "severity": "Medium", "confidence": 0.68, "status": "Under review", "detail": "Illustrative change signal requiring imagery and field validation."},
-]
+import httpx
 
-def summary_payload() -> dict:
+STAC_URL = "https://stac.dataspace.copernicus.eu/v1/search"
+FIRMS_URL = "https://firms.modaps.eosdis.nasa.gov/api/country/csv"
+
+
+class ProviderUnavailable(RuntimeError):
+    """Raised when an upstream Earth-observation provider cannot be reached."""
+
+
+async def sentinel2_catalogue(
+    start: date | None = None,
+    end: date | None = None,
+    max_cloud: int = 30,
+) -> dict[str, Any]:
+    """Discover actual Sentinel-2 L2A scenes intersecting Zimbabwe.
+
+    This returns catalogue metadata, not processed vegetation measurements.
+    """
+    end = end or date.today()
+    start = start or end - timedelta(days=30)
+    payload = {
+        "collections": ["sentinel-2-l2a"],
+        "datetime": f"{start.isoformat()}T00:00:00Z/{end.isoformat()}T23:59:59Z",
+        "intersects": {
+            "type": "Polygon",
+            "coordinates": [[
+                [25.237, -22.417], [33.068, -22.417],
+                [33.068, -15.609], [25.237, -15.609],
+                [25.237, -22.417],
+            ]],
+        },
+        "query": {"eo:cloud_cover": {"lte": max_cloud}},
+        "limit": 100,
+    }
+    try:
+        async with httpx.AsyncClient(timeout=45) as client:
+            response = await client.post(STAC_URL, json=payload)
+            response.raise_for_status()
+            result = response.json()
+    except (httpx.HTTPError, ValueError) as exc:
+        raise ProviderUnavailable(f"Copernicus STAC request failed: {exc}") from exc
+
+    features = result.get("features", [])
+    items = []
+    for feature in features:
+        props = feature.get("properties", {})
+        items.append({
+            "id": feature.get("id"),
+            "datetime": props.get("datetime"),
+            "cloud_cover_percent": props.get("eo:cloud_cover"),
+            "platform": props.get("platform"),
+            "instruments": props.get("instruments"),
+            "collection": feature.get("collection"),
+            "bbox": feature.get("bbox"),
+            "assets": {
+                key: {"href": value.get("href"), "type": value.get("type")}
+                for key, value in feature.get("assets", {}).items()
+                if value.get("href")
+            },
+            "source": "Copernicus Data Space Ecosystem STAC",
+        })
     return {
-        "as_of": datetime.now(timezone.utc).isoformat(),
-        "mode": "DEMO",
-        "source_status": "No live satellite feeds connected",
-        "regions_monitored": len(REGIONS),
-        "priority_regions": sum(item["status"] == "priority" for item in REGIONS),
-        "alerts_open": len(ALERTS),
-        "regions": REGIONS,
+        "source": "Copernicus Data Space Ecosystem",
+        "collection": "sentinel-2-l2a",
+        "query_period": {"start": start.isoformat(), "end": end.isoformat()},
+        "max_cloud_cover_percent": max_cloud,
+        "count": len(items),
+        "items": items,
+        "interpretation": "Catalogue scenes only; no spectral indices have been computed.",
+    }
+
+
+async def firms_country_fires(days: int = 2) -> dict[str, Any]:
+    """Retrieve real VIIRS active-fire detections for Zimbabwe from NASA FIRMS."""
+    map_key = os.getenv("NASA_FIRMS_MAP_KEY")
+    if not map_key:
+        raise ProviderUnavailable(
+            "NASA FIRMS is not configured. Set NASA_FIRMS_MAP_KEY using a free key "
+            "from https://firms.modaps.eosdis.nasa.gov/api/map_key/"
+        )
+    days = max(1, min(days, 10))
+    url = f"{FIRMS_URL}/{map_key}/VIIRS_SNPP_NRT/ZWE/{days}"
+    try:
+        async with httpx.AsyncClient(timeout=45) as client:
+            response = await client.get(url)
+            response.raise_for_status()
+            csv_text = response.text
+    except httpx.HTTPError as exc:
+        raise ProviderUnavailable(f"NASA FIRMS request failed: {exc}") from exc
+
+    import csv
+    import io
+
+    rows = list(csv.DictReader(io.StringIO(csv_text)))
+    return {
+        "source": "NASA FIRMS",
+        "product": "VIIRS_SNPP_NRT",
+        "country": "ZWE",
+        "days": days,
+        "count": len(rows),
+        "items": rows,
+        "caveat": (
+            "Satellite thermal anomalies are detections, not confirmed ground fires. "
+            "Use confidence, acquisition time and field verification."
+        ),
     }
