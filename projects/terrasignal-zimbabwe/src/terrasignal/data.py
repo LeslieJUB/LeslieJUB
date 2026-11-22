@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import csv
+import io
 import os
 from datetime import date, timedelta
 from typing import Any
@@ -9,7 +11,9 @@ from typing import Any
 import httpx
 
 STAC_URL = "https://stac.dataspace.copernicus.eu/v1/search"
-FIRMS_URL = "https://firms.modaps.eosdis.nasa.gov/api/country/csv"
+FIRMS_AREA_URL = "https://firms.modaps.eosdis.nasa.gov/api/area/csv"
+# Approximate Zimbabwe national bounding box, ordered west,south,east,north.
+ZIMBABWE_BBOX = "25.219,-22.398,33.043,-15.609"
 
 
 class ProviderUnavailable(RuntimeError):
@@ -47,7 +51,7 @@ async def sentinel2_catalogue(
             response.raise_for_status()
             result = response.json()
     except (httpx.HTTPError, ValueError) as exc:
-        raise ProviderUnavailable(f"Copernicus STAC request failed: {exc}") from exc
+        raise ProviderUnavailable("Copernicus STAC request failed; check provider status and logs.") from exc
 
     features = result.get("features", [])
     items = []
@@ -79,37 +83,47 @@ async def sentinel2_catalogue(
     }
 
 
-async def firms_country_fires(days: int = 2) -> dict[str, Any]:
-    """Retrieve real VIIRS active-fire detections for Zimbabwe from NASA FIRMS."""
+async def firms_area_fires(days: int = 2) -> dict[str, Any]:
+    """Retrieve real VIIRS thermal-anomaly detections intersecting Zimbabwe.
+
+    Uses the FIRMS Area API. The legacy Country API currently returns HTTP 400.
+    NOAA-21 is selected because Suomi-NPP/VIIRS observations ended in November 2026.
+    """
     map_key = os.getenv("NASA_FIRMS_MAP_KEY")
     if not map_key:
         raise ProviderUnavailable(
             "NASA FIRMS is not configured. Set NASA_FIRMS_MAP_KEY using a free key "
             "from https://firms.modaps.eosdis.nasa.gov/api/map_key/"
         )
-    days = max(1, min(days, 10))
-    url = f"{FIRMS_URL}/{map_key}/VIIRS_SNPP_NRT/ZWE/{days}"
+    days = max(1, min(days, 5))
+    product = "VIIRS_NOAA21_NRT"
+    url = f"{FIRMS_AREA_URL}/{map_key}/{product}/{ZIMBABWE_BBOX}/{days}"
     try:
         async with httpx.AsyncClient(timeout=45) as client:
             response = await client.get(url)
-            response.raise_for_status()
+            if response.status_code >= 400:
+                # Do not include the request URL: it contains the secret map key.
+                detail = response.text[:300].strip()
+                raise ProviderUnavailable(
+                    f"NASA FIRMS returned HTTP {response.status_code}: {detail or 'No error detail'}"
+                )
             csv_text = response.text
     except httpx.HTTPError as exc:
-        raise ProviderUnavailable(f"NASA FIRMS request failed: {exc}") from exc
-
-    import csv
-    import io
+        # Avoid str(exc), which can include the full URL and expose the map key.
+        raise ProviderUnavailable(f"NASA FIRMS network request failed ({type(exc).__name__}).") from exc
 
     rows = list(csv.DictReader(io.StringIO(csv_text)))
     return {
         "source": "NASA FIRMS",
-        "product": "VIIRS_SNPP_NRT",
-        "country": "ZWE",
+        "product": product,
+        "area": "Zimbabwe bounding box",
+        "bbox_wsen": ZIMBABWE_BBOX,
         "days": days,
         "count": len(rows),
         "items": rows,
         "caveat": (
-            "Satellite thermal anomalies are detections, not confirmed ground fires. "
-            "Use confidence, acquisition time and field verification."
+            "VIIRS thermal anomalies are satellite detections, not confirmed ground fires. "
+            "The bounding box may include a small number of observations outside the national border; "
+            "use confidence, acquisition time and boundary clipping before field decisions."
         ),
     }
