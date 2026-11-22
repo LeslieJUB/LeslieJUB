@@ -7,7 +7,9 @@ paths in a production deployment.
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import (
     col,
+    coalesce,
     current_timestamp,
+    lit,
     from_json,
     to_date,
     when,
@@ -73,7 +75,7 @@ def main() -> None:
         .withColumn("processed_at", current_timestamp())
     )
 
-    valid_event = (
+    valid_event = coalesce(
         col("event").isNotNull()
         & col("event.event_id").isNotNull()
         & col("event.order_id").isNotNull()
@@ -83,7 +85,8 @@ def main() -> None:
         & (col("event.amount") <= 10000000)
         & (col("event.quantity") >= 1)
         & (col("event.quantity") <= 100000)
-        & col("event.currency").rlike("^[A-Z]{3}$")
+        & col("event.currency").rlike("^[A-Z]{3}$"),
+        lit(False),
     )
     invalid = parsed.filter(~valid_event).select(
         "source_topic", "source_partition", "source_offset", "raw_value", "processed_at"
