@@ -12,7 +12,6 @@ from pyspark.sql.functions import (
     lit,
     from_json,
     to_date,
-    when,
 )
 from pyspark.sql.types import (
     DoubleType,
