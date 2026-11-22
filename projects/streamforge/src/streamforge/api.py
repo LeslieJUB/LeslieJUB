@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException, Query
 from prometheus_client import make_asgi_app
 from sqlalchemy import text
-from .db import initialise_database, make_engine
+from .db import make_engine
 
 app = FastAPI(title="StreamForge API",
               description="Operational analytics API for the StreamForge event platform.",
