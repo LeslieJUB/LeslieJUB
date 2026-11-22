@@ -29,7 +29,6 @@ def test_health_endpoint(monkeypatch):
 
 
 def test_readiness_endpoint_checks_database(monkeypatch):
-    monkeypatch.setattr(api, "initialise_database", lambda engine: None)
     monkeypatch.setattr(api, "engine", FakeEngine())
     with TestClient(api.app) as client:
         response = client.get("/ready")
