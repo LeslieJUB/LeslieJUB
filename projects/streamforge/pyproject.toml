@@ -9,7 +9,7 @@ description = "Real-time event ingestion and analytics platform"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-  "boto3>=1.34,<2", "confluent-kafka>=2.5,<3", "fastapi>=0.115,<1",
+  "alembic>=1.14,<2", "boto3>=1.34,<2", "confluent-kafka>=2.5,<3", "fastapi>=0.115,<1",
   "pandas>=2.2,<3", "prometheus-client>=0.21,<1", "psycopg[binary]>=3.2,<4",
   "pyarrow>=18,<24", "pydantic>=2.9,<3", "pydantic-settings>=2.6,<3",
   "sqlalchemy>=2.0,<3", "uvicorn[standard]>=0.32,<1"
