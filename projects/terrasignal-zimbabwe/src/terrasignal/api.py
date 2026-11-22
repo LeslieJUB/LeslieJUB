@@ -7,13 +7,13 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from terrasignal.data import (
     ProviderUnavailable,
-    firms_country_fires,
+    firms_area_fires,
     sentinel2_catalogue,
 )
 
 app = FastAPI(
     title="TerraSignal Zimbabwe",
-    version="0.2.0",
+    version="0.2.1",
     description=(
         "Live Earth-observation data discovery for Zimbabwe. "
         "Catalogue records and satellite detections retain source provenance."
@@ -47,8 +47,8 @@ async def get_sentinel_scenes(
 
 
 @app.get("/api/v1/fires", tags=["fire"])
-async def get_fires(days: int = Query(default=2, ge=1, le=10)) -> dict:
+async def get_fires(days: int = Query(default=2, ge=1, le=5)) -> dict:
     try:
-        return await firms_country_fires(days)
+        return await firms_area_fires(days)
     except ProviderUnavailable as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
