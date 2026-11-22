@@ -66,6 +66,11 @@ services:
     env_file: .env
     command: ["uvicorn", "streamforge.api:app", "--host", "0.0.0.0", "--port", "8000"]
     ports: ["8000:8000"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/ready', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
     depends_on:
       postgres: {condition: service_healthy}
       minio-init: {condition: service_completed_successfully}
@@ -76,6 +81,11 @@ services:
     env_file: .env
     command: ["python", "-m", "streamforge.consumer"]
     ports: ["9101:9101"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9101/metrics', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
     depends_on:
       kafka-init: {condition: service_completed_successfully}
       postgres: {condition: service_healthy}
