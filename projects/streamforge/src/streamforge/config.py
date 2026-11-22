@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://streamforge:streamforge@localhost:5432/streamforge"
     kafka_bootstrap_servers: str = "localhost:29092"
     kafka_topic: str = "commerce.orders.v1"
+    kafka_dlq_topic: str = "commerce.orders.dlq.v1"
     kafka_group_id: str = "streamforge-consumer"
     s3_endpoint_url: str | None = "http://localhost:9000"
     s3_access_key: str = "minioadmin"
