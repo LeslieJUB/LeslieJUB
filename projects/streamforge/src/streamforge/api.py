@@ -1,21 +1,22 @@
 from fastapi import FastAPI, HTTPException, Query
 from prometheus_client import make_asgi_app
 from sqlalchemy import text
+
 from .db import make_engine
 
-app = FastAPI(title="StreamForge API",
-              description="Operational analytics API for the StreamForge event platform.",
-              version="0.1.0")
+app = FastAPI(
+    title="StreamForge API",
+    description="Operational analytics API for the StreamForge event platform.",
+    version="0.1.0",
+)
 engine = make_engine()
 app.mount("/metrics", make_asgi_app())
 
-@app.on_event("startup")
-def startup() -> None:
-    initialise_database(engine)
 
 @app.get("/health", tags=["operations"])
 def health() -> dict:
     return {"status": "ok", "service": "streamforge-api"}
+
 
 @app.get("/ready", tags=["operations"])
 def ready() -> dict:
@@ -25,6 +26,7 @@ def ready() -> dict:
         return {"status": "ready", "database": "reachable"}
     except Exception as exc:
         raise HTTPException(status_code=503, detail="Database unavailable") from exc
+
 
 @app.get("/v1/analytics/summary", tags=["analytics"])
 def summary() -> dict:
@@ -36,8 +38,11 @@ def summary() -> dict:
     """)
     with engine.connect() as connection:
         row = connection.execute(query).mappings().one()
-    return {key: float(value) if key == "gross_value" else int(value)
-            for key, value in row.items()}
+    return {
+        key: float(value) if key == "gross_value" else int(value)
+        for key, value in row.items()
+    }
+
 
 @app.get("/v1/events/recent", tags=["events"])
 def recent_events(limit: int = Query(default=25, ge=1, le=250)) -> list[dict]:
